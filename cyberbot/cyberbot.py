@@ -1,17 +1,17 @@
 # cyberbot.py - main class for CyberBot client
-# 
+#
 # This file is part of CyberBot.
-# 
+#
 # CyberBot is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # CyberBot is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with CyberBot.  If not, see <https://www.gnu.org/licenses/>.
 #
@@ -31,12 +31,14 @@ import pickle
 #   DISCORD_GMAIL, DISCORD_GMAIL_PASSWORD
 #
 
+
 @dataclass
 class Session:
     flags: List[dict] = field(default_factory=list)
     react_watch_list: List[dict] = field(default_factory=list)
     verified_users: List[dict] = field(default_factory=list)
     electionData: List[dict] = field(default_factory=list)
+
 
 class CyberBot(discord.Client):
 
@@ -52,24 +54,37 @@ class CyberBot(discord.Client):
     pending_verifies = {}
     electionChannel = None
 
-    def __init__(self,clubname="generic club",datafile=None,verification_enabled=True,org="example.com",electionChannel="elections",*args,**kwargs):
+    def __init__(
+        self,
+        clubname="generic club",
+        datafile=None,
+        verification_enabled=True,
+        org="example.com",
+        electionChannel="elections",
+        *args,
+        **kwargs,
+    ):
         intents = discord.Intents.default()
-        intents.members = True # for seeing members of the server
-        self.guild_name = os.getenv('DISCORD_GUILD')
-        self.token = os.getenv('DISCORD_TOKEN')
-        super(self.__class__,self).__init__(intents=intents,*args,**kwargs)
+        intents.members = True  # for seeing members of the server
+        self.guild_name = os.getenv("DISCORD_GUILD")
+        self.token = os.getenv("DISCORD_TOKEN")
+        super(self.__class__, self).__init__(intents=intents, *args, **kwargs)
         self.clubname = clubname
         self.datafile = datafile
         self.verification_enabled = verification_enabled
         self.organization = org
         self.electionChannel = electionChannel
 
-
     async def on_ready(self):
-        self.guild = discord.utils.find(lambda g: g.name == self.guild_name, self.guilds)
+        self.guild = discord.utils.find(
+            lambda g: g.name == self.guild_name, self.guilds
+        )
         self.load_session()
-        print(f'{self.user} is connected to the following guild:\n'f'{self.guild.name}(id: {self.guild.id})')
-        print(f'Server has {len(self.guild.members)} members.')
+        print(
+            f"{self.user} is connected to the following guild:\n"
+            f"{self.guild.name}(id: {self.guild.id})"
+        )
+        print(f"Server has {len(self.guild.members)} members.")
         # populate non-members list
         for member in self.guild.members:
             roles = [role.name for role in member.roles]
@@ -78,43 +93,42 @@ class CyberBot(discord.Client):
         print(f"There are currently {len(self.non_members)} non-members in the server.")
         self.scheduled_tasks.start()
 
-
     async def on_message(self, message):
         from .channels import handle_election_channel, handle_rule_accept_channel
         from .dm import handle_dm
-        #from .verification import handle_verification_channel
+
+        # from .verification import handle_verification_channel
         if message.author == self.user:
             return
         if isinstance(message.channel, discord.DMChannel):
-            await handle_dm(user=message.author,msg=message)
+            await handle_dm(user=message.author, msg=message)
             return
         if message.channel.name == "accept-rules-here":
-            await handle_rule_accept_channel(message,'Member')
+            await handle_rule_accept_channel(message, "Member")
         elif message.channel.name == self.electionChannel:
             await handle_election_channel(message)
 
-
-    async def on_message_edit(self,before,after):
+    async def on_message_edit(self, before, after):
         from .channels import handle_rule_accept_channel
+
         if after.author == self.user:
             return
         if after.channel.name == "accept-rules-here":
-            await handle_rule_accept_channel(after,'Member')
+            await handle_rule_accept_channel(after, "Member")
 
-
-    async def on_raw_reaction_add(self,payload):
+    async def on_raw_reaction_add(self, payload):
         for item in self.session_data.react_watch_list:
-            if item['id'] == payload.message_id and payload.emoji.name == item['emote']:
+            if item["id"] == payload.message_id and payload.emoji.name == item["emote"]:
                 from .reactions import handle_reaction
-                await handle_reaction(payload,item)
 
+                await handle_reaction(payload, item)
 
-    async def on_raw_reaction_remove(self,payload):
+    async def on_raw_reaction_remove(self, payload):
         for item in self.session_data.react_watch_list:
-            if item['id'] == payload.message_id and payload.emoji.name == item['emote']:
+            if item["id"] == payload.message_id and payload.emoji.name == item["emote"]:
                 from .reactions import handle_reaction
-                await handle_reaction(payload,item,inverse=True)
 
+                await handle_reaction(payload, item, inverse=True)
 
     async def on_member_join(self, member):
         # prevent other bots from being invited in
@@ -131,8 +145,7 @@ class CyberBot(discord.Client):
         # go ahead and set user as non-member status
         self.non_members.append(member.id)
 
-
-    async def on_raw_member_remove(self,payload):
+    async def on_raw_member_remove(self, payload):
         member = payload.user
         # remove user from self.non_members if they leave without accepting the rules
         if member.id in self.non_members:
@@ -144,58 +157,59 @@ class CyberBot(discord.Client):
             del self.pending_verifies[key]
         # remove from verifications, no need to remove role since they are leaving
         from .verification import remove_verification
-        remove_verification(member.id,removeRole=False)
 
+        remove_verification(member.id, removeRole=False)
 
     def start_election_instance(self):
         from .voting import Voting
-        self.election = Voting(self.clubname)
 
+        self.election = Voting(self.clubname)
 
     def end_election_instance(self):
         self.election = None
 
-
     @tasks.loop(seconds=60.0)
     async def scheduled_tasks(self):
-        current_time = arrow.now('US/Central').format('ddd-HH:mm')
-        if current_time == 'Sat-12:00':
+        current_time = arrow.now("US/Central").format("ddd-HH:mm")
+        if current_time == "Sat-12:00":
             from .dm import alert_nonmembers
-            await alert_nonmembers()
 
+            await alert_nonmembers()
 
     def load_session(self):
         if not (self.datafile and os.path.isfile(self.datafile)):
-            return # file will be created later with pickle.dump()
-        with open(self.datafile,'rb') as fp:
+            return  # file will be created later with pickle.dump()
+        with open(self.datafile, "rb") as fp:
             data = pickle.load(fp)
         self.session_data = data
-        self.do_session_migrate() # only migrates when necessary
+        self.do_session_migrate()  # only migrates when necessary
         try:
-            print(f'loaded session data: {str(self.session_data)}')
-        except(AttributeError):
+            print(f"loaded session data: {str(self.session_data)}")
+        except AttributeError:
             print("Error migrating session, please contact the developers.")
 
-
     def update_session(self, item, data=None, append=False):
-        if not self.datafile: # no need to update a session if there is no session to update
+        if (
+            not self.datafile
+        ):  # no need to update a session if there is no session to update
             return
         try:
-            sess_item = getattr(self.session_data,item)
-        except(AttributeError):
+            sess_item = getattr(self.session_data, item)
+        except AttributeError:
             print(f"[!] Failed to update {item} in session data.")
             return
-        if data == None and not append: # handle normal file update
+        if data == None and not append:  # handle normal file update
             data = sess_item
         if append:
             sess_item.append(data)
         else:
-            setattr(self.session_data,item,data)
-        with open(self.datafile,'wb') as fp:
-            pickle.dump(self.session_data,fp)
+            setattr(self.session_data, item, data)
+        with open(self.datafile, "wb") as fp:
+            pickle.dump(self.session_data, fp)
 
     def do_session_migrate(self):
         from cyberbot.utils import diff_lists
+
         newKeys = Session.__dataclass_fields__.keys()
         oldKeys = self.session_data.__dict__.keys()
         diff = diff_lists(newKeys, oldKeys)
@@ -203,13 +217,13 @@ class CyberBot(discord.Client):
             return
         print("Migrating session data...")
         newSession = Session()
-        commonClasses = list(set.intersection(*map(set,[newKeys,oldKeys])))
+        commonClasses = list(set.intersection(*map(set, [newKeys, oldKeys])))
         for c in commonClasses:
-            setattr(newSession,c,getattr(self.session_data,c))
+            setattr(newSession, c, getattr(self.session_data, c))
         self.session_data = newSession
-        with open(self.datafile,'wb') as fp:
-            pickle.dump(self.session_data,fp)
+        with open(self.datafile, "wb") as fp:
+            pickle.dump(self.session_data, fp)
         print("Successfully migrated session data")
 
-    def run(self,*args,**kwargs):
-        super(self.__class__,self).run(self.token,*args,**kwargs)
+    def run(self, *args, **kwargs):
+        super(self.__class__, self).run(self.token, *args, **kwargs)

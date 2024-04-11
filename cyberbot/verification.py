@@ -29,11 +29,12 @@ from email.mime.multipart import MIMEMultipart
 from random import randint
 
 blocked_emails = [
-    'uahcybersec@uah.edu',
-    ]
+    "uahcybersec@uah.edu",
+]
+
 
 def validate_email(email):
-    emailMatch = re.fullmatch(email_regex,email)
+    emailMatch = re.fullmatch(email_regex, email)
     if not emailMatch:
         return False, "Invalid email."
     domain = emailMatch.group(1)
@@ -42,13 +43,13 @@ def validate_email(email):
     if email in blocked_emails:
         return False, "This email is blocked."
     return True, None
-    
+
 
 async def handle_verification(message):
     if message.author.id in [x["id"] for x in client.session_data.verified_users]:
         await message.reply("You are already verified. Congrats!")
         return
-    split_msg = message.content.strip().split(' ',1)
+    split_msg = message.content.strip().split(" ", 1)
     if len(split_msg) != 2:
         await message.reply("Invalid command.")
         return
@@ -60,8 +61,10 @@ async def handle_verification(message):
     if not check:
         await message.reply(err)
         return
-    if email in [x['email'] for x in client.session_data.verified_users]:
-        message.reply(f"Please do not re-use emails for verification. Please contact an admin if this is a legitimate verification request.")
+    if email in [x["email"] for x in client.session_data.verified_users]:
+        message.reply(
+            f"Please do not re-use emails for verification. Please contact an admin if this is a legitimate verification request."
+        )
         return
     await send_code(message)
     await message.reply(f"Sent verification code to {email}")
@@ -73,8 +76,8 @@ async def send_code(email):
     sender_password = os.getenv("DISCORD_GMAIL_PASSWORD")
 
     code = str(randint(0, 999999)).zfill(6)
-    expire = time.time() + 60*15
-    receiver_email = email.content.strip().split(' ',1)[1]
+    expire = time.time() + 60 * 15
+    receiver_email = email.content.strip().split(" ", 1)[1]
     message = MIMEMultipart("alternative")
     message["Subject"] = f"{client.clubname} Discord Verification"
     message["From"] = sender_email
@@ -111,32 +114,49 @@ async def send_code(email):
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
         server.login(sender_email, sender_password)
-        server.sendmail(
-            sender_email, receiver_email, message.as_string()
-        )
+        server.sendmail(sender_email, receiver_email, message.as_string())
     # code expires in 15 minutes
-    client.pending_verifies[email.author] = {"code": code, "expiration": expire, "email": receiver_email, "attempts": 0}
+    client.pending_verifies[email.author] = {
+        "code": code,
+        "expiration": expire,
+        "email": receiver_email,
+        "attempts": 0,
+    }
     print(f"User {email.author} sent verification code {code} to {receiver_email}")
 
 
 # Check if a code is valid
 async def check_code(message):
-    server_user = discord.utils.get(client.guild.members,id=message.author.id)
-    code = message.content.strip().split(' ',1)[1]
+    server_user = discord.utils.get(client.guild.members, id=message.author.id)
+    code = message.content.strip().split(" ", 1)[1]
     is_expired = client.pending_verifies[message.author]["expiration"] < time.time()
     reply_msg = "Invalid code."
-    if client.pending_verifies[message.author]["attempts"] > 10: # allow 10 attempts
-        await message.reply("Too many verification attempts detected. Please contact an Officer to help you out.")
+    if client.pending_verifies[message.author]["attempts"] > 10:  # allow 10 attempts
+        await message.reply(
+            "Too many verification attempts detected. Please contact an Officer to help you out."
+        )
         return
     client.pending_verifies[message.author]["attempts"] += 1
     if str(client.pending_verifies[message.author]["code"]) == code:
         if not is_expired:
-            await server_user.add_roles(discord.utils.get(client.guild.roles, name="Verified Student"))
+            await server_user.add_roles(
+                discord.utils.get(client.guild.roles, name="Verified Student")
+            )
             reply_msg = "You have been successfully verified."
-            client.update_session('verified_users',{"id": server_user.id, "email": client.pending_verifies[message.author]["email"]},append=True)
-            print(f"Successfully verified {server_user} as {client.pending_verifies[message.author]['email']}.")
+            client.update_session(
+                "verified_users",
+                {
+                    "id": server_user.id,
+                    "email": client.pending_verifies[message.author]["email"],
+                },
+                append=True,
+            )
+            print(
+                f"Successfully verified {server_user} as {client.pending_verifies[message.author]['email']}."
+            )
         del client.pending_verifies[message.author]
     await message.reply(reply_msg)
+
 
 def get_verified_users():
     if len(client.session_data.verified_users) == 0:
@@ -146,45 +166,63 @@ def get_verified_users():
         tosend += f"  • <@{u['id']}>: {u['email']}\n"
     return tosend
 
+
 def get_verified_emails():
     if len(client.session_data.verified_users) == 0:
         return "no verified users"
     tosend = "Verified emails:\n\n"
-    tosend += ','.join([x['email'] for x in client.session_data.verified_users])
+    tosend += ",".join([x["email"] for x in client.session_data.verified_users])
     return tosend
+
 
 def get_pending_verifications():
     if len(client.pending_verifies) == 0:
         return "no pending verifications"
     tosend = "Pending verifications:\n\n"
-    for author,data in client.pending_verifies.items():
+    for author, data in client.pending_verifies.items():
         tosend += f"  • <@{author.id}>: {data['email']} with code `{data['code']}` ({data['attempts']}/10 attempts)"
     return tosend
 
+
 def get_verification_index_of_user(user):
-    userID = user if isinstance(user,int) else user.id # can pass either ID or full user here
+    userID = (
+        user if isinstance(user, int) else user.id
+    )  # can pass either ID or full user here
     for i, data in enumerate(client.session_data.verified_users):
         if data["id"] == userID:
             return i
     return -1
 
+
 def remove_pending(username):
-    user = discord.utils.get(client.guild.members, name=username.split('#')[0], discriminator=username.split('#')[1])
+    user = discord.utils.get(
+        client.guild.members,
+        name=username.split("#")[0],
+        discriminator=username.split("#")[1],
+    )
     del client.pending_verifies[user]
 
+
 async def remove_verification(username, removeRole=True):
-    if isinstance(username,int): # can pass ID to username parameter
+    if isinstance(username, int):  # can pass ID to username parameter
         user = username
     else:
-        user = discord.utils.get(client.guild.members, name=username.split('#')[0], discriminator=username.split('#')[1])
+        user = discord.utils.get(
+            client.guild.members,
+            name=username.split("#")[0],
+            discriminator=username.split("#")[1],
+        )
     verification_idx = get_verification_index_of_user(user)
     if verification_idx == -1:
         return False
     del client.session_data.verified_users[verification_idx]
-    client.update_session('verified_users')
+    client.update_session("verified_users")
     if removeRole:
-        await user.remove_roles(discord.utils.get(client.guild.roles, name="Verified Student"))
+        await user.remove_roles(
+            discord.utils.get(client.guild.roles, name="Verified Student")
+        )
     return True
+
 
 @officers_only
 async def verifications(user, msg):
@@ -202,7 +240,7 @@ async def verifications(user, msg):
             return tosend
         remove_pending(pieces[1])
         tosend = f"Removed {pieces[1]} from pending verifications."
-    elif pieces[0] == "rmVerification": # revoke a verification
+    elif pieces[0] == "rmVerification":  # revoke a verification
         if "#" not in pieces[1]:
             return tosend
         removed = await remove_verification(pieces[1])
@@ -211,9 +249,11 @@ async def verifications(user, msg):
         else:
             tosend = f"Successfully removed verification status for {pieces[1]}"
     elif pieces[0] == "help":
-        tosend = ( "usage: `!verifications [action] [OPTIONS]`\nActions:\n"
+        tosend = (
+            "usage: `!verifications [action] [OPTIONS]`\nActions:\n"
             "\t- `getVerified`: display a list of all verified users\n"
             "\t- `getPending`: display a list of all pending verifications\n"
             "\t- `rmPending [user#discriminator]`: delete a pending verification\n"
-            "\t- `rmVerification [user#discriminator]`: remove a user's verification status\n")
+            "\t- `rmVerification [user#discriminator]`: remove a user's verification status\n"
+        )
     return tosend
