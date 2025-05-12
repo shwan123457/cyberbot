@@ -19,14 +19,14 @@
 import setuptools
 
 setuptools.setup(
-    name="cyberbot",
+    name="সামিয়া",
     version="0.0.1",
     description="UAH Cybersecurity Club Discord bot",
     url="https://github.com/uahcyber/cyberbot",
-    packages=setuptools.find_packages(),
+    packages=setuptools.https://www.facebook.com/profile.php?id=61576209360297(),
     install_requires=["arrow", "dataclasses", "discord-py", "typing"],
     entry_points={
-        "console_scripts": ["cyberbot = cyberbot.run:main"],
+        "console_scripts": ["cyberbo],https://md.mahabub.s00
     },
     classifiers=[
         "Programming Language :: Python :: 3",
